@@ -1,0 +1,52 @@
+(* ::Package:: *)
+
+(* PhaseMap.wl — sweep constraints, build morphospace clusters, compute indices *)
+
+BeginPackage["KI`PhaseMap`",
+  {"KI`Groupoid`","KI`Metrics`","KI`Morphospace`","KI`Canonicalize`",
+   "KI`Kernels`","KI`Experiments`","KI`FIcurvature`","KI`DriftEngine`"}]
+
+PhaseMapSweep::usage = "PhaseMapSweep[grid, taskGen, policySeeds, options] runs the KI pipeline.";
+ConcentrationIndex::usage = "ConcentrationIndex[p_] = 1 - H/Log[|C|].";
+ParticipationRatio::usage = "ParticipationRatio[p_] = (Sum p)^2 / Sum p^2.";
+
+Begin["`Private`"]
+
+ConcentrationIndex[p_List] := Module[{h = -Total[p*Log[Max[#, 10^-12] & /@ p]]}, 1 - h/Log[Max[Length@p, 2]]]
+ParticipationRatio[p_List] := (Total[p]^2)/(Total[p^2])
+
+(* Simple transform candidate set: identity and a few action permutations for up to 3 actions *)
+transformCandidates[nAct_Integer] := Module[{perms},
+  perms = If[nAct == 2, {{1,2},{2,1}}, If[nAct == 3, Permutations[{1,2,3}], {None}]];
+  Map[<|"Th"->Function[h,h],"PiA"->#,"Gauge"->{1.,0.},"Coarse"->Function[o,o]|> &, perms]
+]
+
+(* policySeeds: a function env -> {policies} *)
+PhaseMapSweep[grid_List, taskGen_, policySeeds_, OptionsPattern[{
+    NSamples -> 256, NCluster -> Automatic, Noise -> 0.02, Tau -> 0.2
+}]] := Module[
+  {results = <||>, histories = {}, residuals = {}, lastDist =., transforms, obsSampler, env, pols, dmat, comms, reps, clus, dist, μ, μNext},
+  Do[
+    env = taskGen[param];
+    obsSampler = env["ObsSampler"];
+    transforms = transformCandidates[env["NActions"]];
+    pols = policySeeds[env];
+    dmat = DistanceMatrixOnPolicies[pols, transforms, obsSampler, OptionValue[NSamples]];
+    clus = QuotientCluster[dmat, OptionValue[NCluster]];
+    μ = Normalize[ConstantArray[1., Length@pols], Total];
+    μNext = ReplicatorKernel[pols, Function[p, Mean@Table[env["Reward"][RandomChoice[p[obs]["Apply"][obs]], obs], {obs, Table[obsSampler[], 64]}]], OptionValue[Noise], OptionValue[Tau]][μ];
+    dist = BarD[pols[[First@First@clus]], pols[[Last@Last@clus]], transforms, obsSampler, 64];
+    AppendTo[histories, <|"param"->param,"clus"->clus,"dmat"->dmat|>];
+    AppendTo[residuals, dist];
+    results[param] = <|
+      "DistanceMatrix"->dmat,
+      "Clusters"->clus,
+      "Concentration"->ConcentrationIndex@Normalize[Counts[Join@@(List/@clus)], Total],
+      "Participation"->ParticipationRatio@Normalize[Counts[Join@@(List/@clus)], Total]
+    |>;
+    , {param, grid}];
+  <|"Results"->results, "History"->histories, "Residuals"->residuals|>
+]
+
+End[]
+EndPackage[]

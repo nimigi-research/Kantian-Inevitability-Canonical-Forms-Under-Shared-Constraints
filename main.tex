@@ -1,0 +1,410 @@
+% Monolithic Steelman Update for Overleaf
+% Kantian Inevitability: Canonical Forms Under Shared Constraints — KI-Δ2 (Steelmanned)
+% This version consolidates formal results, instrumentation, simulations, falsifiers, and implementation notes.
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amsthm,amssymb,mathtools}
+\usepackage{bm}
+\usepackage{bbm}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage[backend=biber]{biblatex}
+\addbibresource{refs.bib}
+\usepackage{thmtools}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{tikz-cd}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{float}
+
+\title{Kantian Inevitability: Canonical Forms Under Shared Constraints\\\large KI-$\Delta$2 (Steelmanned Edition)}
+\author{ }
+\date{August 13, 2025}
+
+\declaretheorem[name=Theorem]{theorem}
+\declaretheorem[name=Lemma,numberwithin=theorem]{lemma}
+\declaretheorem[name=Corollary,numberwithin=theorem]{corollary}
+\declaretheorem[name=Definition,style=definition,numberwithin=theorem]{definition}
+\declaretheorem[name=Remark,style=remark,numberwithin=theorem]{remark}
+\declaretheorem[name=Conjecture,style=plain,numberwithin=theorem]{conjecture}
+\declaretheorem[name=Proposition,numberwithin=theorem]{proposition}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\Wone}{W_1}
+\newcommand{\TV}{\mathrm{TV}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\trace}{\mathrm{tr}}
+\newcommand{\Lip}{\mathrm{Lip}}
+\newcommand{\diam}{\mathrm{diam}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We strengthen and extend the thesis of \emph{Kantian Inevitability} (KI): under shared environmental constraints, learning and selection processes on policies concentrate---up to behavior-preserving symmetries and payoff gauge transforms---on a small menu of canonical forms. We formalize the invariance structure as a \emph{transform groupoid} acting on both tasks and policies, define the induced policy \emph{morphospace} as a categorical quotient, and analyze selection dynamics as Markov kernels on that morphospace. We prove concentration of stationary mass under either potential ascent or Wasserstein contraction, establish Lipschitz continuity of stationary laws under small constraint shifts away from bifurcations, and show implementation-agnostic convergence for optimizers maximizing the same free-energy at matched capacity. We introduce a measurement stack that makes the phase map operational: Fisher-information curvature for phase detection, measure-theoretic flow centrality for pathway localization, compile-time safety contracts on decision kernels, typed graded effects for safe composition, drift-validity alarms, temperament-conditioned mixtures, and Murphy-optimal budget allocation. We provide a preregistered simulation protocol across four task ensembles and state crisp falsifiers that can kill the theory. This version consolidates and supersedes KI-$\Delta$1.\footnote{Based on and extending the initial draft KI-$\Delta$1, \emph{Kantian Inevitability: Canonical Forms Under Shared Constraints}.  [oai_citation:0‡Kantian_Inevitability__Canonical_Forms_Under_Shared_Constraints.pdf](file-service://file-MvsEn8RrJw2fUhondHYS8p)}
+\end{abstract}
+
+\section{Overview and Contributions}
+\textbf{Thesis.} Let $E$ collect environmental constraints such as resource budget $b$, observation noise $\sigma$, adversarial intensity $\alpha$, compute $K$, and horizon $H$. When agents learn or are selected under the same $E$, their long-run policy distributions on a suitably quotiented space collapse around a small finite or low-entropy set $C(E)$ of canonical forms. The phase map $E \mapsto C(E)$ varies continuously off bifurcations and is largely insensitive to implementation details when optimizers maximize the same free-energy objective under matched capacity and gauge.
+
+\textbf{What is new in KI-$\Delta$2.}
+\begin{enumerate}[leftmargin=2em]
+    \item Replace the transform monoid with a \emph{transform groupoid} to handle partial isomorphisms and to compose alignments objectwise. Promote the quotient to a categorical construction to preserve composition. 
+    \item Prove \textbf{Theorem A$'$} (Concentration) under either potential ascent or global contraction and quantify explicit constants for perturbation size. For the regular-perturbation path (logit + mutation), we align with the stochastic-stability framework in learning in games \parencite{Young1993,Kandori1993}. 
+    \item Prove \textbf{Theorem B$'$} (Continuity) with an explicit $\Wone$ bound under kernel Lipschitzness and global contraction, using standard optimal-transport tools \parencite{Villani2009}. 
+    \item Prove \textbf{Theorem C$'$} (Implementation-agnostic functoriality) that maps optimizer categories to the same canonical supports under matched free-energy and gauge. 
+    \item Add \textbf{KI-D} (Information-Bottleneck Canonicals): canonicals coincide with optimal policies over minimal sufficient partitions under an InfoCost budget, invoking Blackwell sufficiency \parencite{Blackwell1953} and classical information measures \parencite{CoverThomas2006}. 
+    \item Introduce instrumentation: Fisher-information curvature, measure-theoretic flow centrality, compile-time safety contracts on decision kernels, typed graded effects for safe composition, ergodic drift-validity alarms, temperament-conditioned mixtures, and Murphy-optimal allocation for fast phase mapping. 
+    \item Provide preregistered experiments and explicit falsifiers that decisively test each claim.
+\end{enumerate}
+
+\section{Primitives and Invariance}
+\subsection{Primitives}
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Environment ensemble $\Pi$.} A distribution over MDPs or POMDPs $M \sim \Pi$ satisfying shared structural constraints $E = (b,\sigma,\alpha,K,H)$. Comparative-statics expectations for movement of canonicals across $E$ follow the standard monotone programs and supermodular structure \parencite{Topkis1998,MilgromShannon1994}.
+    \item \textbf{Agent class $\mathcal{A}$.} Learners with capacity budgets and update rules $U$ including policy-gradient RL, Bayesian free-energy descent, imitation plus RL, and replicator dynamics with mutation; when combined with trembles/mutation, these yield regular perturbed processes \parencite{Young1993,Kandori1993}.
+    \item \textbf{Policy space $P$.} Measurable maps from histories to actions, with a base behavioral distance $d$ defined below.
+\end{itemize}
+
+\subsection{Transform groupoid and logit gauge}
+\begin{definition}[Transform groupoid $\mathcal{T}$]
+Objects are tuples $\mathsf{Ob}(\mathcal{T})$ of history $\sigma$-algebras and action sets associated with environment instances in the support of $\Pi$. An arrow $t \in \mathrm{Mor}(\mathcal{T})$ is a tuple
+\[
+t = (T_h, \pi_a, a, b, C)
+\]
+where $T_h$ is a measure-preserving isomorphism on the history space (possibly partial, with domain and codomain objects matching), $\pi_a$ is a permutation of the action set, $(a,b)$ is a positive-affine payoff transform $r' = a r + b$ with $a>0$, and $C$ is an observation coarse-graining that is Blackwell-sufficient for the relevant loss family \parencite{Blackwell1953}. Composition of arrows is defined objectwise and respects each component.
+\end{definition}
+
+\begin{definition}[Groupoid action]
+The action of $t$ on a policy $\pi$ is $t \cdot \pi := \pi_a \circ \pi \circ T_h^{-1}$ evaluated on $C$-coarsened observations. Performance is evaluated under the transformed payoff $r' = a r + b$.
+\end{definition}
+
+\begin{remark}[Logit gauge]
+Logit response is not invariant to payoff rescaling unless the inverse temperature $\tau$ rescales. Throughout, $(r,\tau)$ and $(a r + b, a \tau)$ are treated as equivalent \emph{gauge representatives} of the same decision problem. Statements involving logit choice are always interpreted in this gauge; the associated free-energy terms are classical information quantities \parencite{CoverThomas2006}.
+\end{remark}
+
+\subsection{Equivalence and morphospace}
+\begin{definition}[Equivalence]
+For $\pi_1,\pi_2 \in P$ define $\pi_1 \sim \pi_2$ if
+\[
+\inf_{t_1,t_2 \in \mathrm{Mor}(\mathcal{T})} d(t_1 \cdot \pi_1, t_2 \cdot \pi_2) = 0
+\]
+and ordinal performance rankings are preserved under the gauge with $a>0$.
+\end{definition}
+
+\begin{definition}[Morphospace and quotient metric]
+The morphospace is the quotient $\mathcal{M} := P /\!\sim$ with metric
+\[
+\bar d([\pi_1],[\pi_2]) := \inf_{t_1,t_2 \in \mathrm{Mor}(\mathcal{T})} d(t_1 \cdot \pi_1, t_2 \cdot \pi_2).
+\]
+\end{definition}
+
+\begin{lemma}[Compactness in finite settings]
+If observations, actions, and horizon are finite and memory or compute are bounded, then $(\mathcal{M},\bar d)$ is compact.
+\end{lemma}
+
+\begin{remark}[Tightness and precompactness]
+For countable or compact observation and action spaces with bounded memory or compute, Prokhorov tightness and continuity of the groupoid action yield precompact orbit closures. This extends compactness to natural infinite settings used in practice; high-dimensional concentration tools are useful for these precompactness and stability arguments \parencite{VanHandel2014}.
+\end{remark}
+
+\section{Dynamics on the morphospace}
+Let $K_{E,\varepsilon}:\mathcal{M} \to \mathcal{P}(\mathcal{M})$ be the learning or selection kernel for constraints $E$ and perturbation vector $\varepsilon = (\tau,\eta,\xi)$ capturing inverse temperature, mutation, and exploration noise. The induced pushforward $D_{E,\varepsilon}$ on probability measures is
+\[
+D_{E,\varepsilon}(\mu) := \mu K_{E,\varepsilon}.
+\]
+A stationary law $\mu^*_{E,\varepsilon}$ satisfies $\mu^*_{E,\varepsilon} = D_{E,\varepsilon}(\mu^*_{E,\varepsilon})$.
+
+\begin{definition}[Regular perturbation]
+A family $K_{E,\varepsilon}$ is a regular perturbation of $K_{E,0}$ if $K_{E,\varepsilon} \Rightarrow K_{E,0}$ and the communicating classes of $K_{E,0}$ persist as almost absorbing sets under small $\|\varepsilon\|$ \parencite{Young1993,Kandori1993}.
+\end{definition}
+
+Assume $K_{E,\varepsilon}$ is Feller and $(\mathcal{M},\bar d)$ is compact or tight. Then stationary laws exist by standard fixed-point theorems.
+
+\section{Main theorems}
+\subsection{Concentration}
+\begin{theorem}[Theorem A$'$: Concentration under potential ascent or contraction]\label{thm:concentration}
+Assume either potential ascent or contraction:
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Potential ascent.} The unperturbed dynamics $K_{E,0}$ ascend a bounded potential $\Phi:\mathcal{M} \to \R$; with trembles this becomes a regular perturbed process whose stochastically stable states maximize a regularized potential \parencite{Young1993,Kandori1993}.
+    \item \textbf{Contraction.} There exists a neighborhood $\mathcal{U} \subset \mathcal{M}$ containing all recurrent classes such that for some $\lambda \in (0,1)$
+    \[
+    \Wone(\nu K_{E,0}, \nu' K_{E,0}) \le \lambda \, \Wone(\nu,\nu') \quad \text{for all probability measures supported in } \mathcal{U}.
+    \]
+\end{enumerate}
+Then for sufficiently small $\varepsilon$, every stationary law $\mu^*_{E,\varepsilon}$ places at least $1 - c \|\varepsilon\|$ mass in a $\bar d$-neighborhood of a finite set $C(E)$ of canonical classes, for a constant $c$ depending only on $K_{E,0}$ and the neighborhood $\mathcal{U}$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+In the finite case with logit and mutation, $K_{E,\varepsilon}$ is a regular perturbed process \parencite{Young1993,Kandori1993}. Stochastically stable classes maximize the regularized potential $\Phi_{\tau} = \Phi + \tau H$. Quotienting by $\sim$ identifies duplicates, leaving a finite set $C(E)$. Stationary mass outside neighborhoods of $C(E)$ is $O(\|\varepsilon\|)$. Under contraction, apply Banach's fixed-point theorem at the level of measures to show uniqueness and stability of the stationary law within $\mathcal{U}$, then use persistence of attractors under small perturbations to bound mass leakage in $\Wone$ \parencite{Villani2009}.
+\end{proof}
+
+\subsection{Continuity under constraint shift}
+\begin{theorem}[Theorem B$'$: Lipschitz continuity of stationary laws]\label{thm:continuity}
+Let $E$ and $E+\Delta$ be constraints that do not cross a bifurcation boundary. Suppose
+\[
+\sup_{x \in \mathcal{M}} \Wone\bigl(K_{E,0}(x,\cdot), K_{E+\Delta,0}(x,\cdot)\bigr) \le L_0 \|\Delta\|
+\]
+and $\Lip(D_{E+\theta \Delta,0}) \le \lambda < 1$ for all $\theta \in [0,1]$. Then
+\[
+\Wone(\mu^*_{E,0}, \mu^*_{E+\Delta,0}) \le \frac{L_0}{1 - \lambda} \|\Delta\|.
+\]
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+Couple the two kernels pathwise to bound the one-step Wasserstein distance, then iterate the contraction to obtain the resolvent bound. The absence of bifurcations ensures the same recurrent structure. Wasserstein tools follow the standard OT playbook \parencite{Villani2009}.
+\end{proof}
+
+\subsection{Implementation-agnosticism}
+\begin{theorem}[Theorem C$'$: Functorial implementation-agnosticism]\label{thm:functor}
+Let $\mathsf{Opt}$ be a category whose objects are optimizers that maximize the same free-energy
+\[
+\mathcal{F}(\pi) = \E[r] - \beta\,\mathrm{InfoCost}(\pi) - \lambda\,\mathrm{Risk}(\pi)
+\]
+under matched capacity and gauge. Morphisms are simulation-equivalences preserving $\mathcal{F}$. Then there exists a faithful functor $\mathcal{G}: \mathsf{Opt} \to \mathrm{Dist}(\mathcal{M})$ mapping each optimizer to a stationary law with support contained in a small neighborhood of the same canonical set $C(E)$, with image diameter controlled by optimizer noise $\varepsilon$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+Construct $\mathcal{G}$ by pushing each optimizer's stationary law through the quotient map. Free-energy equivalence and gauge matching ensure identical potential structure, so supports coincide up to perturbation radii. Faithfulness follows because distinct optimizers with distinct free-energy landscapes would have different support profiles after quotienting, which contradicts the premise.
+\end{proof}
+
+\subsection{Information-bottleneck canonicals}
+\begin{proposition}[KI-D: Canonicals as minimal sufficient partitions]\label{prop:ib}
+Under an information cost budget $\beta$, admissible coarse-grainings $C$ in the groupoid are those that are Blackwell-sufficient for the declared loss. Canonical classes coincide with policies that are optimal over minimal sufficient partitions under $\beta$ \parencite{Blackwell1953,CoverThomas2006}. As $\beta$ tightens, the Fisher-information curvature along learned policy manifolds exhibits steps corresponding to partition refinements, which appear as phase boundaries in the morphospace.
+\end{proposition}
+
+\section{Measurement and identifiability}
+\subsection{Behavioral distances}
+Define the base distance
+\[
+d(\pi_1,\pi_2) := \E_{M \sim \Pi} \Bigl[\TV\bigl(\pi_1(\cdot \mid h_M), \pi_2(\cdot \mid h_M)\bigr)\Bigr].
+\]
+For POMDPs, a bisimulation-style metric can be substituted. The quotient metric $\bar d$ is induced by infimal alignment over groupoid arrows and evaluated via $\Wone$ \parencite{Villani2009}.
+
+\subsection{Concentration and participation}
+Let $\mu^*$ be a stationary law supported on canonical classes. Report normalized entropy $\tilde H = H(\mu^*) / \log |C|$ and concentration $1 - \tilde H$. Add the participation ratio
+\[
+PR = \frac{\bigl(\sum_i p_i\bigr)^2}{\sum_i p_i^2}
+\]
+to avoid entropy artifacts when supports are small.
+
+\subsection{Alignment diagnostics and sufficiency tests}
+Compute $\bar d$ using Hungarian matching for action permutations and a small invertible $T_h$ learned to minimize the base distance subject to a sufficiency constraint. Reject coarse-grainings $C$ unless a Blackwell sufficiency test passes for the declared loss family \parencite{Blackwell1953}.
+
+\section{Instrumentation stack}
+\subsection{Fisher-information curvature}
+Equip local policy families with the Fisher information (FI) metric $g_{ij} = \E[\partial_{\theta_i}\log \pi \cdot \partial_{\theta_j}\log \pi]$. Canonical basins exhibit curvature ridges and phase boundaries emerge where principal curvatures change sign or spike. Define a curvature-gap score as the difference between the largest and median FI eigenvalues near the maximum a posteriori canonical; FI and basic information identities follow \parencite{CoverThomas2006}.
+
+\subsection{Measure-theoretic flow centrality}
+View training or selection as probability flow on a discretized morphospace graph obtained by clustering under $\bar d$. Define flow centrality of edges as the fraction of mass that traverses them on the path to canonical basins. Use this to localize bottlenecks and to select alignment levers for steering.
+
+\subsection{Compile-time safety contracts for kernels}
+Attach contracts to each $K_{E,\varepsilon}$: measurability, support invariants, and gauge equivariance. Contracts guarantee that composition of optimizers or learning rules preserves the equivalence relation and risk budgets. Unit tests enforce contracts at build time.
+
+\subsection{Typed graded effects}
+Give policies and transforms effect types indexed by budgets $(b,K,H,\sigma,\alpha)$ and graded by information use and risk. Composition laws ensure types and contracts are preserved, making invariances explicit. Comparative-static movement of types across $E$ can be reasoned via monotone comparative statics \parencite{Topkis1998,MilgromShannon1994}.
+
+\subsection{Ergodic drift-validity engine}
+Monitor ergodic metric drift on the data-generation graph. Raise alarms when empirical continuity bounds approach violation, signaling proximity to a bifurcation or a domain shift in $\Pi$. Contraction diagnostics can be phrased via the Dobrushin coefficient \parencite{Dobrushin1956}.
+
+\subsection{Temperament-conditioned mixtures}
+Treat optimizer hyperpriors for exploration and risk attitude as latent temperaments. Fit mixtures over temperaments and examine how mixing weights vary smoothly with $E$. Canonical predictions transfer to mixture components.
+
+\subsection{Murphy-optimal budgeting}
+Allocate compute and wall time across stressors $(\sigma,b,\alpha,K,H)$ to maximize information about the phase map per unit resource. Use value of information to schedule sweeps that most sharply resolve canonical boundaries.
+
+\section{Simulation protocol}
+\subsection{Task ensembles}
+\begin{description}[leftmargin=2em]
+    \item[T1: Noisy majority POMDP] Controls $\sigma$ and predicts threshold or median rules as canonicals.
+    \item[T2: Sparse-value bandit or MDP] Controls $b$ and predicts lexicographic sparsification canonicals.
+    \item[T3: Zero-sum grid adversary] Controls $\alpha$ and predicts min–max mixing canonicals with small stable supports.
+    \item[T4: Alias-heavy POMDP] Validates Blackwell-sufficient coarse-grainings and bisimulation collapse \parencite{Blackwell1953}.
+\end{description}
+
+\subsection{Agent families}
+Bounded-compute softmax RL, Bayesian model-based agents with information cost, and population replicator dynamics with mutation. All agents are matched on capacity and operate in the same logit gauge.
+
+\subsection{Training and annealing}
+Use a curriculum over $(\sigma,\alpha,K)$ with a geometric cooling schedule $\tau_t = \tau_0 \gamma^t$ for $\gamma$ in $[0.98,0.995]$. Convergence guarantees and step-size discipline follow the stochastic-approximation playbook \parencite{Borkar2008}. Stop when $\tau < 10^{-3}$ or when the change in concentration $\Delta(1 - \tilde H)$ stays below $10^{-3}$ for five consecutive evaluations. Apply the logit gauge whenever reward scales change.
+
+\subsection{Grid and preregistered predictions}
+Use the grid $\sigma \in \{0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6\}$, $b \in \{1,2,4,8\}$, $\alpha \in \{0.0, 0.2, 0.4, 0.6, 0.8, 1.0\}$, $K \in \{10^3,10^4,10^5,10^6\}$, and $H \in \{10,50,200\}$. 
+\begin{itemize}[leftmargin=2em]
+    \item T1 predicts curvature peaks when $\sigma$ crosses the Bayes error elbow for threshold policies.
+    \item T2 predicts sharp drops in $PR$ as the budget $b$ tightens and only a few high-value arms remain.
+    \item T3 predicts linear-response in mixing weights for small $\Delta \alpha$ until a support bifurcation.
+    \item T4 predicts small alignment loss and passing sufficiency tests for the learned coarse-grainings $C$ \parencite{Blackwell1953}.
+\end{itemize}
+
+\subsection{Evaluation and ablations}
+Cluster policies under $\bar d$, compute $1 - \tilde H$ and $PR$, and sweep $E$ to trace bifurcations. Swap optimizers under matched capacity and gauge and verify overlap of canonical supports to test implementation-agnosticism.
+
+\section{Risks, limits, and falsifiers}
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Over-quotienting.} Forbid $C$ that are not Blackwell-sufficient. Unit-test by two-sample risk gaps \parencite{Blackwell1953}.
+    \item \textbf{Domain shift.} If $\Pi$ drifts relative to the mixing time of $K_{E,\varepsilon}$, $C(E)$ may shift abruptly. Use the drift-validity engine and OT diagnostics \parencite{Villani2009}.
+    \item \textbf{Metastability.} Treat curriculum as part of $E$ and verify that concentration is not path dependent \parencite{Young1993,Kandori1993}.
+    \item \textbf{Mechanism disjointness.} Under matched capacity and gauge, if optimizers yield non-overlapping supports under $\bar d$ across most seeds, KI-C fails.
+    \item \textbf{Unlimited capacity.} If the $\bar d$-diameter of the top cluster does not shrink as $K$ increases after returns plateau, implementation-agnosticism is challenged; step-size and noise tuning can be analyzed via stochastic approximation \parencite{Borkar2008}.
+\end{itemize}
+
+\noindent\textbf{Kill tests.}
+\begin{enumerate}[leftmargin=2em]
+    \item After at least a constant factor times the empirical mixing time, concentration $1 - \tilde H < 0.3$ for at least four fifths of fifty seeds under fixed $E$.
+    \item Empirical $\Wone(\mu^*_{E,0},\mu^*_{E+\Delta,0})$ exceeds $\frac{L_0}{1-\lambda}\|\Delta\|$ away from measured boundary regions flagged by curvature spikes and drift alarms \parencite{Villani2009}.
+    \item Supports under $\bar d$ do not overlap across optimizers that maximize the same free-energy under matched capacity and gauge in at least four fifths of seeds.
+\end{enumerate}
+
+\section{Design priors}
+When time or compute is scarce, begin from a canonical matched to $E$. High noise favors threshold or median rules. Tight budgets favor lexicographic sparsification. Adversarial pressure favors min–max mixing with small stable supports. Heavy aliasing favors policies over minimal sufficient partitions. Curvature and flow diagnostics accelerate the correct choice. Movement of these priors under parameter shifts follows monotone comparative statics \parencite{Topkis1998,MilgromShannon1994}.
+
+\section{Implementation notes and repository layout}
+\subsection{Alignment metric}
+Compute $\bar d$ by combining Hungarian matching for action permutations with a learned invertible $T_h$ that minimizes the base distance. Validate $C$ by sufficiency tests before acceptance \parencite{Blackwell1953}.
+
+\subsection{Logit gauge helper}
+Maintain a utility that rescales $\tau$ when reward units rescale so that $(r,\tau)$ and $(a r + b, a\tau)$ remain in gauge equivalence \parencite{CoverThomas2006}.
+
+\subsection{Suggested layout}
+\begin{verbatim}
+ki/
+  README.md
+  docs/
+    OVERVIEW.md
+    MORPHOSPACE.md
+    EQUIVALENCE_SIM.md
+    PROOF_PLAN.md
+  python/
+    sim_envs.py
+    policies.py
+    morphospace.py
+    eval_metrics.py
+  contracts/
+    kernel_contracts.py
+    tests/
+  figs/
+    phase_map.png
+    concentration_vs_noise.png
+  lean/
+    Groupoid.lean
+    Quotient.lean
+    StochasticStability.lean
+    KI_A_Concentration.lean
+\end{verbatim}
+
+\section{Algorithms and diagnostics}
+\subsection{Canonicalization pipeline}
+\begin{algorithm}[H]
+\caption{Canonicalization and phase mapping}
+\begin{algorithmic}[1]
+\STATE \textbf{Input} environment ensemble $\Pi$, constraint grid $\mathcal{E}$, agent family $\mathcal{A}$
+\FOR{each $E \in \mathcal{E}$}
+    \STATE Train agents from $\mathcal{A}$ under $E$ with annealing schedule $\tau_t = \tau_0 \gamma^t$
+    \STATE Collect policy snapshots and compute base distances $d$
+    \STATE Solve alignment by optimizing $T_h$, apply Hungarian matching for action permutations, and test Blackwell-sufficiency for $C$ \parencite{Blackwell1953}
+    \STATE Build $\bar d$ matrix and cluster to obtain candidate canonicals
+    \STATE Estimate FI curvature and flow centrality and annotate clusters \parencite{CoverThomas2006}
+    \STATE Compute concentration $1 - \tilde H$ and participation ratio $PR$
+\ENDFOR
+\STATE \textbf{Output} phase map $E \mapsto C(E)$ with curvature overlays and flow pathways
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Drift-validity alarm}
+\begin{algorithm}[H]
+\caption{Ergodic drift alarm}
+\begin{algorithmic}[1]
+\STATE Maintain rolling occupancy measures and two-sample tests across windows
+\STATE Issue warning when continuity residuals trend toward the $\frac{L_0}{1-\lambda}\|\Delta\|$ bound \parencite{Villani2009}
+\STATE Escalate to boundary scan when FI curvature spikes and flow centrality re-routes \parencite{CoverThomas2006}
+\end{algorithmic}
+\end{algorithm}
+
+\section{Proof program and formalization roadmap}
+\subsection{Finite case}
+Complete the regular perturbed process proof for logit plus mutation, identify stochastically stable classes as potential maximizers, and push them through the quotient map $P \to \mathcal{M}$. Verify that identification reduces to a finite canonical set $C(E)$ \parencite{Young1993,Kandori1993}. 
+
+\subsection{Contraction case}
+Establish a Dobrushin coefficient for $K_{E,0}$ implying global contraction on a neighborhood of recurrent classes \parencite{Dobrushin1956}. Apply the contraction mapping theorem to establish a unique stationary law and its stability. Use attractor persistence under small perturbations to derive concentration bounds in $\Wone$ \parencite{Villani2009}.
+
+\subsection{Continuity}
+Construct a coupling of $K_{E,0}$ and $K_{E+\Delta,0}$ to control one-step $\Wone$ and iterate under contraction to get the Lipschitz bound \parencite{Villani2009}.
+
+\subsection{Lean skeleton targets}
+Encode \texttt{Groupoid}, \texttt{Quot}, \texttt{Kernel}, and \texttt{Contract} in the proof assistant. State KI-A as a concentration theorem on $\mathcal{M}$ for regular perturbed processes and prove finite-case instances \parencite{Young1993,Kandori1993}.
+
+\section{Companion technical notes integrated into KI-$\Delta$2}
+The following companion notes supply definitions and algorithms used here, each cited where relevant:
+\begin{itemize}[leftmargin=2em]
+    \item \textcite{MeasureContracts}: measure-theoretic compile-time safety contracts for decision kernels.
+    \item \textcite{GradedEffects}: typed, contract-indexed, graded effects for safe composition.
+    \item \textcite{FlowCentrality}: measure-theoretic flow centrality on discretized morphospace graphs.
+    \item \textcite{FICurvature}: Fisher-information geometry and curvature diagnostics.
+    \item \textcite{DriftValidity}: ergodic metric drift as a path validity engine on finite graphs.
+    \item \textcite{IdiomProj}: idiom projections on finite paths and FI transport.
+    \item \textcite{TCPS}: temperament-conditioned policy search.
+    \item \textcite{MurphyBudgeting}: parallel Murphy budgeting for experimental design under constraints.
+\end{itemize}
+
+\section{Conclusion}
+The KI program yields a practical map from constraints to canonical forms and provides instruments to measure where one stands on that map. When invariances are explicit and contracts enforce safe composition, mechanism choice becomes a detail rather than destiny. The phase map is falsifiable, instrumented, and actionable.
+
+\section*{Acknowledgments}
+We thank collaborators and readers of KI-$\Delta$1 for critiques that motivated the groupoid formalization, the contraction analysis, and the instrumentation stack.
+
+\appendix
+
+\section{Appendix A: Additional definitions and metrics}
+\subsection{Bisimulation-style distance}
+For POMDPs with belief states $b(h)$, define
+\[
+d_{\mathrm{bis}}(\pi_1,\pi_2) = \E_{M \sim \Pi}\bigl[\Wone\bigl(\pi_1(\cdot \mid b(h_M)), \pi_2(\cdot \mid b(h_M))\bigr)\bigr]
+\]
+and use it within the groupoid alignment to induce $\bar d$ \parencite{Villani2009}.
+
+\subsection{Risk regularizers}
+Let $\mathrm{Risk}(\pi)$ be expected shortfall at level $q$ or a variance proxy. The free-energy objective becomes $\E[r] - \beta \mathrm{InfoCost} - \lambda \mathrm{Risk}$, and the gauge acts on $r$ and $\tau$ only \parencite{CoverThomas2006}.
+
+\section{Appendix B: Contracts and typed effects}
+\subsection{Kernel contracts}
+Each kernel $K_{E,\varepsilon}$ declares
+\begin{itemize}[leftmargin=2em]
+    \item measurability and support,
+    \item gauge equivariance,
+    \item risk budget invariants.
+\end{itemize}
+Composition of kernels is allowed only if contracts compose and invariants remain satisfied.
+
+\subsection{Typed graded effects}
+Effects are indexed by $(b,K,H,\sigma,\alpha)$ and graded by information use and risk. Composition preserves grades and supports static checking of invariances \parencite{Topkis1998,MilgromShannon1994}.
+
+\section{Appendix C: Fisher-information curvature and flow centrality}
+\subsection{Curvature}
+Given parameterized policies $\pi_\theta$, the FI metric is $g_{ij}(\theta) = \E[\partial_{\theta_i}\log \pi_\theta \; \partial_{\theta_j}\log \pi_\theta]$. The curvature gap is the difference between the largest and median eigenvalues of $g(\theta)$ computed near canonical peaks \parencite{CoverThomas2006}.
+
+\subsection{Flow centrality}
+Discretize $\mathcal{M}$ by clustering under $\bar d$, estimate empirical transition matrices between clusters during training, and compute edge betweenness or current flow centrality to identify bottlenecks.
+
+\section{Appendix D: Reproducibility checklist}
+\begin{itemize}[leftmargin=2em]
+    \item All random seeds fixed and recorded.
+    \item Hyperparameters and annealing schedules logged \parencite{Borkar2008}.
+    \item Phase maps saved with curvature overlays and flow pathways \parencite{CoverThomas2006}.
+    \item Contract checks executed and logged.
+    \item Falsifiers reported with pass or fail flags.
+\end{itemize}
+
+% Print the bibliography (everything actually cited will appear)
+\printbibliography
+
+\end{document}
